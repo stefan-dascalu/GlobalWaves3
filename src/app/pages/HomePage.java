@@ -26,7 +26,8 @@ public final class HomePage extends Page {
     public String printCurrentPage() {
         User u = (User) user;
 
-        return "Liked songs:\n\t%s\n\nFollowed playlists:\n\t%s"
+        return ("Liked songs:\n\t%s\n\nFollowed playlists:\n\t%s\n\n"
+                + "Song recommendations:\n\t%s\n\nPlaylists recommendations:\n\t%s")
                 .formatted(u.getLikedSongs().stream()
                                 .sorted(Comparator.comparing(Song::getLikes)
                                         .reversed()).limit(limit).map(Song::getName)
@@ -37,6 +38,8 @@ public final class HomePage extends Page {
                                                 - o1.getSongs().stream()
                                                 .map(Song::getLikes).reduce(Integer::sum)
                                                 .orElse(0)).limit(limit).map(Playlist::getName)
-                                .toList());
+                                .toList(),
+                        u.getSongRecommendations().stream().map(Song::getName).toList(),
+                        u.getPlaylistRecommendations().stream().map(Playlist::getName).toList());
     }
 }

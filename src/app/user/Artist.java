@@ -141,20 +141,41 @@ public final class Artist extends ContentCreator {
         return "artist";
     }
 
+    /**
+     * Increases revenue for given song.
+     *
+     * @param song te song
+     * @param amount the amount
+     */
     public void increaseSongRevenue(final Song song, final double amount) {
         revenuePerSong.put(song, amount + revenuePerSong.getOrDefault(song, 0.0));
     }
 
+    /**
+     * Gets total revenue for songs.
+     *
+     * @return the revenue
+     */
     public double getTotalSongRevenue() {
         return revenuePerSong.values().stream().mapToDouble(Double::doubleValue).sum();
     }
 
+    /**
+     * Gets song with the highest revenue.
+     *
+     * @return the song
+     */
     public Optional<Map.Entry<Song, Double>> getHighestRevenueSong() {
         return revenuePerSong.entrySet().stream()
                 .min(Map.Entry.<Song, Double>comparingByValue().reversed()
                         .thenComparing((Map.Entry<Song, Double> e) -> e.getKey().getName()));
     }
 
+    /**
+     * Increases merch revenue amount.
+     *
+     * @param amount the amount
+     */
     public void increaseMerchRevenue(final double amount) {
         merchRevenue += amount;
     }

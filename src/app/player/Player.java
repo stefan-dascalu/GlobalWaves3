@@ -1,11 +1,13 @@
 package app.player;
 
+import app.Admin;
 import app.audio.Collections.AudioCollection;
 import app.audio.Files.AudioFile;
 import app.audio.LibraryEntry;
 import app.user.AudioChangeListener;
 import app.utils.Enums;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +15,7 @@ import java.util.List;
 /**
  * The type Player.
  */
-public final class Player {
+public final class Player implements AudioChangeListener {
     private Enums.RepeatMode repeatMode;
     private boolean shuffle;
     private boolean paused;
@@ -24,13 +26,27 @@ public final class Player {
     private final int skipTime = 90;
 
     private ArrayList<PodcastBookmark> bookmarks = new ArrayList<>();
+    private PlayerSource resumeSource;
+    private String resumeType;
+    private Enums.RepeatMode resumeRepeatMode;
+    private boolean resumeShuffle;
+    private final AudioChangeListener listener;
+    @Getter
+    @Setter
+    private int adState;
 
     /**
      * Instantiates a new Player.
      */
-    public Player() {
+    public Player(final AudioChangeListener listener) {
         this.repeatMode = Enums.RepeatMode.NO_REPEAT;
         this.paused = true;
+
+        this.resumeSource = null;
+        this.resumeRepeatMode = this.repeatMode;
+        this.shuffle = false;
+        this.listener = listener;
+        adState = 0;
     }
 
     /**
@@ -104,14 +120,13 @@ public final class Player {
      * @param entry      the entry
      * @param sourceType the sourceType
      */
-    public void setSource(final LibraryEntry entry, final String sourceType,
-                          final AudioChangeListener listener) {
+    public void setSource(final LibraryEntry entry, final String sourceType) {
         if ("podcast".equals(this.type)) {
             bookmarkPodcast();
         }
 
         this.type = sourceType;
-        this.source = createSource(sourceType, entry, bookmarks, listener);
+        this.source = createSource(sourceType, entry, bookmarks, this);
         this.repeatMode = Enums.RepeatMode.NO_REPEAT;
         this.shuffle = false;
         this.paused = true;
@@ -201,7 +216,16 @@ public final class Player {
         }
 
         if (source.getDuration() == 0 && paused) {
-            stop();
+            if (adState == 1) {
+                adState = 2;
+                setSource(Admin.getInstance().getAdBreakSong(), "song");
+                pause();
+                adState = 3;
+            } else {
+                resumeSource = null;
+                //onAudioChange(null);
+                stop();
+            }
         }
     }
 
@@ -214,6 +238,9 @@ public final class Player {
     }
 
     private void skip(final int duration) {
+        if (source.getAudioFile() == Admin.getInstance().getAdBreakSong()) {
+            return;
+        }
         source.skip(duration);
         paused = false;
     }
@@ -294,5 +321,51 @@ public final class Player {
         }
 
         return new PlayerStats(filename, duration, repeatMode, shuffle, paused);
+    }
+
+    public void adBreak() {
+        if (getCurrentAudioFile() == null) {
+            adState = 2;
+
+            setSource(Admin.getInstance().getAdBreakSong(), "song");
+            pause();
+
+            return;
+        }
+        adState = 1;
+    }
+
+
+    @Override
+    public void onAudioChange(final AudioFile audioFile) {
+        if (adState == 0 || adState == 2) {
+            listener.onAudioChange(audioFile);
+        }
+
+        if (adState == 3) {
+            adState = 0;
+
+            if (resumeSource != null) {
+                source = resumeSource;
+                repeatMode = resumeRepeatMode;
+                shuffle = resumeShuffle;
+                type = resumeType;
+            }
+            return;
+        }
+        if (adState == 1) {
+            adState = 2;
+
+            if (source != null) {
+                resumeSource = source;
+                resumeRepeatMode = repeatMode;
+                resumeShuffle = shuffle;
+                resumeType = type;
+            }
+
+            setSource(Admin.getInstance().getAdBreakSong(), "song");
+            pause();
+            adState = 3;
+        }
     }
 }

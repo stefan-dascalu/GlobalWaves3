@@ -11,6 +11,8 @@ import app.pages.ArtistPage;
 import app.pages.Page;
 import app.player.Player;
 import app.monetization.MonetizationOutput;
+import app.recommendation.Recommendation;
+import app.recommendation.RecommendationFactory;
 import app.statistics.UserStatistics;
 import app.user.*;
 import fileio.input.CommandInput;
@@ -246,6 +248,12 @@ public final class Admin {
         users.forEach(user -> user.simulateTime(elapsed));
     }
 
+    /**
+     * Gets abstract user
+     *
+     * @param username the username
+     * @return the user abstract
+     */
     public UserAbstract getAbstractUser(final String username) {
         ArrayList<UserAbstract> allUsers = new ArrayList<>();
 
@@ -796,6 +804,14 @@ public final class Admin {
         switch (nextPage) {
             case "Home" -> user.setCurrentPage(user.getHomePage());
             case "LikedContent" -> user.setCurrentPage(user.getLikedContentPage());
+            case "Artist" -> {
+                Artist artist = getArtist(((Song) user.getPlayer().getCurrentAudioFile()).getArtist());
+                user.setCurrentPage(artist.getPage());
+            }
+            case "Host" -> {
+                Host host = getHost(user.getPlayer().getCurrentAudioCollection().getOwner());
+                user.setCurrentPage(host.getPage());
+            }
             default -> {
                 return "%s is trying to access a non-existent page.".formatted(username);
             }
@@ -951,7 +967,7 @@ public final class Admin {
      * @return the monetization outputs
      */
     public LinkedHashMap<String, MonetizationOutput> endProgram() {
-        getPremiumUsers().forEach(u -> u.generateRevenueForArtists(0));
+        getPremiumUsers().forEach(User::generateRevenueForArtists);
 
         AtomicInteger rank = new AtomicInteger(1);
 
@@ -1061,5 +1077,22 @@ public final class Admin {
         User user = getUser(username);
 
         return user.getNotifications();
+    }
+
+    public String updateRecommendations(final CommandInput commandInput) {
+        String username = commandInput.getUsername();
+
+        if (getArtist(username) != null || getHost(username) != null) {
+            return "%s is not a normal user.".formatted(username);
+        }
+
+        User user = getUser(username);
+        if (user == null) {
+            return "The username %s doesn't exist".formatted(username);
+        }
+
+        Recommendation recommendation = RecommendationFactory.createRecommendation(user,
+                commandInput.getRecommendationType());
+        return recommendation.execute();
     }
 }

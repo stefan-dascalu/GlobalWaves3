@@ -29,6 +29,12 @@ public abstract class ContentCreator extends UserAbstract {
         subscribers = new ArrayList<>();
     }
 
+    /**
+     * Adds a new user as subscriber.
+     *
+     * @param user the user
+     * @return the string
+     */
     public String subscribe(final User user) {
         boolean contained = subscribers.remove(user);
 

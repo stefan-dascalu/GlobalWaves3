@@ -124,7 +124,6 @@ public class PlayerSource {
                 if (shuffle) {
                     if (indexShuffled == indices.size() - 1) {
                         remainedDuration = 0;
-                        listener.onAudioChange(null);
                         isPaused = true;
                     } else {
                         indexShuffled++;

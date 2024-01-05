@@ -758,20 +758,40 @@ public final class CommandRunner {
         return objectNode;
     }
 
+    /**
+     * Previous page object node.
+     *
+     * @param commandInput the command input
+     * @return the object node
+     */
     public static ObjectNode previousPage(final CommandInput commandInput) {
+        User user = admin.getUser(commandInput.getUsername());
+        String message = user.previousPage();
+
         ObjectNode objectNode = objectMapper.createObjectNode();
         objectNode.put("command", commandInput.getCommand());
         objectNode.put("user", commandInput.getUsername());
         objectNode.put("timestamp", commandInput.getTimestamp());
+        objectNode.put("message", message);
 
         return objectNode;
     }
 
+    /**
+     * Next page object node.
+     *
+     * @param commandInput the command input
+     * @return the object node
+     */
     public static ObjectNode nextPage(final CommandInput commandInput) {
+        User user = admin.getUser(commandInput.getUsername());
+        String message = user.nextPage();
+
         ObjectNode objectNode = objectMapper.createObjectNode();
         objectNode.put("command", commandInput.getCommand());
         objectNode.put("user", commandInput.getUsername());
         objectNode.put("timestamp", commandInput.getTimestamp());
+        objectNode.put("message", message);
 
         return objectNode;
     }
@@ -955,24 +975,48 @@ public final class CommandRunner {
         return objectNode;
     }
 
+    /**
+     * Update recommendations object node.
+     *
+     * @param commandInput the command input
+     * @return the object node
+     */
     public static ObjectNode updateRecommendations(final CommandInput commandInput) {
+        String message = admin.updateRecommendations(commandInput);
+
         ObjectNode objectNode = objectMapper.createObjectNode();
         objectNode.put("command", commandInput.getCommand());
-        objectNode.put("username", commandInput.getUsername());
+        objectNode.put("user", commandInput.getUsername());
         objectNode.put("timestamp", commandInput.getTimestamp());
+        objectNode.put("message", message);
 
         return objectNode;
     }
 
+    /**
+     * Load recommendations object node.
+     *
+     * @param commandInput the command input
+     * @return the object node
+     */
     public static ObjectNode loadRecommendations(final CommandInput commandInput) {
+        User user = admin.getUser(commandInput.getUsername());
+        String message = user.loadRecommendation();
+
         ObjectNode objectNode = objectMapper.createObjectNode();
         objectNode.put("command", commandInput.getCommand());
-        objectNode.put("username", commandInput.getUsername());
+        objectNode.put("user", commandInput.getUsername());
         objectNode.put("timestamp", commandInput.getTimestamp());
+        objectNode.put("message", message);
 
         return objectNode;
     }
 
+    /**
+     * End program object node.
+     *
+     * @return the object node
+     */
     public static ObjectNode endProgram() {
         LinkedHashMap<String, MonetizationOutput> monetizationOutput = admin.endProgram();
 

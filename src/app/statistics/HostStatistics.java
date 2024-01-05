@@ -36,7 +36,8 @@ public final class HostStatistics extends Statistics {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1,
                         LinkedHashMap::new));
 
-        long listeners = userStatistics.stream().filter(s -> s.getEpisodeListens().entrySet().stream()
+        long listeners = userStatistics.stream().filter(s -> s.getEpisodeListens()
+                .entrySet().stream()
                 .anyMatch(e -> host.getAllEpisodes().contains(e.getKey()))).count();
 
         return new HostStatisticsOutput(topEpisodes, (int) listeners);

@@ -7,13 +7,11 @@ import app.audio.Collections.PlaylistOutput;
 import app.audio.Files.AudioFile;
 import app.audio.Files.Song;
 import app.audio.LibraryEntry;
-import app.monetization.Ad;
-import app.monetization.FreeUserRevenueCalculator;
-import app.monetization.PremiumUserRevenueCalculator;
 import app.monetization.RevenueCalculator;
 import app.pages.HomePage;
 import app.pages.LikedContentPage;
 import app.pages.Page;
+import app.pages.PageNavigator;
 import app.player.Player;
 import app.player.PlayerStats;
 import app.searchBar.Filters;
@@ -42,9 +40,7 @@ public final class User extends UserAbstract implements AudioChangeListener {
     private boolean status;
     private final SearchBar searchBar;
     private boolean lastSearched;
-    @Getter
-    @Setter
-    private Page currentPage;
+    private final PageNavigator pageNavigator;
     @Getter
     @Setter
     private HomePage homePage;
@@ -53,15 +49,18 @@ public final class User extends UserAbstract implements AudioChangeListener {
     private LikedContentPage likedContentPage;
     @Getter
     private boolean premium;
-    private final List<Song> freeSongHistory;
-    private final List<Song> premiumSongHistory;
     private RevenueCalculator revenueCalculator;
 
     @Getter
     private final List<Merchandise> boughtMerchandise;
-    @Setter
-    private Ad nextAd;
     private final List<Notification> notifications;
+    @Getter
+    private final List<Song> songRecommendations;
+    @Getter
+    private final List<Playlist> playlistRecommendations;
+    @Setter
+    @Getter
+    private LibraryEntry lastRecommendation;
 
     /**
      * Instantiates a new User.
@@ -74,25 +73,26 @@ public final class User extends UserAbstract implements AudioChangeListener {
         super(username, age, city);
         playlists = new ArrayList<>();
         likedSongs = new ArrayList<>();
-        freeSongHistory = new ArrayList<>();
-        premiumSongHistory = new ArrayList<>();
         followedPlaylists = new ArrayList<>();
         boughtMerchandise = new ArrayList<>();
         notifications = new ArrayList<>();
 
-        player = new Player();
+        songRecommendations = new ArrayList<>();
+        playlistRecommendations = new ArrayList<>();
+        lastRecommendation = null;
+
+        player = new Player(this);
         searchBar = new SearchBar(username);
         lastSearched = false;
         status = true;
         premium = false;
 
         homePage = new HomePage(this);
-        currentPage = homePage;
         likedContentPage = new LikedContentPage(this);
+        pageNavigator = new PageNavigator(homePage, username);
 
+        revenueCalculator = new RevenueCalculator(this);
         super.setStatistics(new UserStatistics(this));
-        revenueCalculator = new FreeUserRevenueCalculator(freeSongHistory);
-        nextAd = null;
     }
 
     @Override
@@ -156,7 +156,8 @@ public final class User extends UserAbstract implements AudioChangeListener {
                 return "The selected ID is too high.";
             }
 
-            currentPage = selected.getPage();
+
+            pageNavigator.changePage(selected.getPage());
             return "Successfully selected %s's page.".formatted(selected.getUsername());
         } else {
             LibraryEntry selected = searchBar.select(itemNumber);
@@ -190,15 +191,42 @@ public final class User extends UserAbstract implements AudioChangeListener {
             return "You can't load an empty audio collection!";
         }
 
-        nextAd = null;
+        player.setAdState(0);
 
-        player.setSource(searchBar.getLastSelected(), searchBar.getLastSearchType(), this);
+        player.setSource(searchBar.getLastSelected(), searchBar.getLastSearchType());
         searchBar.clearSelection();
 
         player.pause();
 
 
         return "Playback loaded successfully.";
+    }
+
+    /**
+     * Loads the latest recommendation.
+     *
+     * @return the string
+     */
+    public String loadRecommendation() {
+        if (!status) {
+            return "%s is offline.".formatted(getUsername());
+        }
+
+        if (lastRecommendation == null) {
+            return "No recommendations available.";
+        }
+        String sourceType = "";
+        if (lastRecommendation instanceof Playlist) {
+            sourceType = "playlist";
+        } else {
+            sourceType = "song";
+        }
+
+        player.setSource(lastRecommendation, sourceType);
+        player.pause();
+
+        return "Playback loaded successfully.";
+
     }
 
     /**
@@ -624,11 +652,9 @@ public final class User extends UserAbstract implements AudioChangeListener {
 
     /**
      * Generates revenue for artists.
-     *
-     * @param adPrice the ad price if any
      */
-    public void generateRevenueForArtists(final int adPrice) {
-        revenueCalculator.calculateRevenue(adPrice);
+    public void generateRevenueForArtists() {
+        revenueCalculator.calculateRevenue();
     }
 
     /**
@@ -636,16 +662,14 @@ public final class User extends UserAbstract implements AudioChangeListener {
      */
     public void buyPremium() {
         premium = true;
-        revenueCalculator = new PremiumUserRevenueCalculator(premiumSongHistory);
     }
 
     /**
      * Deactivates premium.
      */
     public void cancelPremium() {
+        revenueCalculator.calculateRevenue();
         premium = false;
-        revenueCalculator.calculateRevenue(0);
-        revenueCalculator = new FreeUserRevenueCalculator(freeSongHistory);
     }
 
     /**
@@ -654,17 +678,8 @@ public final class User extends UserAbstract implements AudioChangeListener {
      * @param adPrice the ad price
      */
     public void adBreak(final int adPrice) {
-        if (player.getCurrentAudioFile() == null) {
-            nextAd = null;
-
-            generateRevenueForArtists(adPrice);
-
-            player.setSource(Admin.getInstance().getAdBreakSong(), "song", this);
-            player.pause();
-
-            return;
-        }
-        nextAd = new Ad(adPrice);
+        player.adBreak();
+        revenueCalculator.setAdPrice(adPrice);
     }
 
     /**
@@ -682,7 +697,7 @@ public final class User extends UserAbstract implements AudioChangeListener {
      * @return the string
      */
     public String subscribe() {
-        UserAbstract user = getCurrentPage().getUser();
+        UserAbstract user = pageNavigator.getCurrentPage().getUser();
 
         if (user instanceof Artist || user instanceof Host) {
             ContentCreator creator = (ContentCreator) user;
@@ -707,11 +722,47 @@ public final class User extends UserAbstract implements AudioChangeListener {
      * @return the notifications
      */
     public List<Notification> getNotifications() {
-        List<Notification> notifications = new ArrayList<>(this.notifications);
+        List<Notification> currNotifications = new ArrayList<>(this.notifications);
 
         this.notifications.clear();
 
-        return notifications;
+        return currNotifications;
+    }
+
+    /**
+     * Prints current page.
+     *
+     * @return the string
+     */
+    public Page getCurrentPage() {
+        return pageNavigator.getCurrentPage();
+    }
+
+    /**
+     * Changes current page.
+     *
+     * @param page the page
+     */
+    public void setCurrentPage(final Page page) {
+        pageNavigator.changePage(page);
+    }
+
+    /**
+     *  Next page.
+     *
+     * @return the string
+     */
+    public String nextPage() {
+        return pageNavigator.nextPage();
+    }
+
+    /**
+     * Previous page.
+     *
+     * @return the string
+     */
+    public String previousPage() {
+        return pageNavigator.previousPage();
     }
 
     @Override
@@ -721,16 +772,8 @@ public final class User extends UserAbstract implements AudioChangeListener {
 
     @Override
     public void onAudioChange(final AudioFile audioFile) {
-        if (nextAd != null) {
-            generateRevenueForArtists(nextAd.getPrice());
-            nextAd = null;
-
-            player.setSource(Admin.getInstance().getAdBreakSong(), "song", this);
-            player.pause();
-            return;
-        }
-
-        if (audioFile == null || audioFile == Admin.getInstance().getAdBreakSong()) {
+        if (audioFile == Admin.getInstance().getAdBreakSong()) {
+            revenueCalculator.calculateRevenue();
             return;
         }
 
